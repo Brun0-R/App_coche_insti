@@ -1,0 +1,94 @@
+#include "HUSKYLENS.h"
+#include "Wire.h"
+
+HUSKYLENS huskylens;
+
+String misSenales[] = {
+  "Desconocido", 
+  "STOP",              // ID 1
+  "Prohibido",         // ID 2
+  "Girar a un lado",   // ID 3 
+  "Girar al otro",     // ID 4 
+  "Carretera/Fondo"    // ID 5 
+};
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+  
+  while (!huskylens.begin(Wire)) {
+    Serial.println(F("Error de conexion."));
+    delay(2000);
+  }
+  
+  huskylens.writeAlgorithm(ALGORITHM_OBJECT_CLASSIFICATION);
+  
+  Serial.println(F("========================================="));
+  Serial.println(F("   SISTEMA DE ENTRENAMIENTO MULTI-FOTO   "));
+  Serial.println(F("========================================="));
+  Serial.println(F("Escribe un numero varias veces para sumar fotos:"));
+  Serial.println(F(" '1' -> Añadir 5 fotos a STOP"));
+  Serial.println(F(" '2' -> Añadir 5 fotos a PROHIBIDO"));
+  Serial.println(F(" '3' -> Añadir 5 fotos a DIRECCION 1"));
+  Serial.println(F(" '4' -> Añadir 5 fotos a DIRECCION 2"));
+  Serial.println(F(" '5' -> Añadir 5 fotos a FONDO"));
+  Serial.println(F("========================================="));
+}
+
+void loop() {
+  
+  // ---------------------------------------------------------
+  // 1. ZONA DE ENTRENAMIENTO: SUMAR IMÁGENES
+  // ---------------------------------------------------------
+  if (Serial.available() > 0) {
+    char comando = Serial.read();
+    int idAprender = comando - '0'; 
+    
+    if (idAprender >= 1 && idAprender <= 5) {
+      Serial.print(F("--> Añadiendo 5 fotos nuevas al ID "));
+      Serial.println(idAprender);
+      
+      // Tomamos solo 5 fotos cada vez que presionas el número
+      for(int i = 0; i < 5; i++) {
+        huskylens.writeLearn(idAprender); 
+        delay(150); // Pequeña pausa entre fotos
+      }
+      Serial.println(F("--> ¡Fotos guardadas! Mueve la señal y vuelve a enviar el numero."));
+    } 
+  }
+
+  // ---------------------------------------------------------
+  // 2. ZONA DE CONDUCCIÓN DEL COCHE
+  // ---------------------------------------------------------
+  if (huskylens.request() && huskylens.available()) {
+    while (huskylens.available()) {
+      HUSKYLENSResult result = huskylens.read();
+      
+      if (result.command == COMMAND_RETURN_BLOCK) {
+        int idVisto = result.ID;
+        
+        switch (idVisto) {
+          case 1:
+            Serial.println("VEO STOP (Con mucha seguridad): ¡Frenando!");
+            break;
+            
+          case 2:
+            Serial.println("VEO PROHIBIDO: ¡Retrocediendo!");
+            break;
+            
+          case 3:
+            Serial.println("VEO FLECHA IZQ: ¡Girando a la izquierda!");
+            break;
+            
+          case 4:
+            Serial.println("VEO FLECHA DER: ¡Girando a la derecha!");
+            break;
+
+          case 5:
+            // Fondo
+            break;
+        }
+      }
+    }
+  }
+}

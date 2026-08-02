@@ -1,0 +1,118 @@
+#include <SoftwareSerial.h>
+
+SoftwareSerial miBluetooth(10, 11); // RX, TX
+
+// --- PINES ---
+// Asumimos que el Motor A es el Derecho
+const int ENA = 9; 
+const int IN1 = 7; 
+const int IN2 = 6; 
+
+// Asumimos que el Motor B es el Izquierdo
+const int ENB = 3; 
+const int IN3 = 4; 
+const int IN4 = 2; 
+
+void setup() {
+  Serial.begin(9600);
+  miBluetooth.begin(38400); 
+  
+  // Tiempo de espera súper corto para evitar lag al leer Strings
+  miBluetooth.setTimeout(20); 
+  
+  pinMode(ENA, OUTPUT); pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
+  pinMode(ENB, OUTPUT); pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
+
+  pararMotores();
+  Serial.println("Robot Listo. Esperando coordenadas X e Y...");
+}
+
+void loop() {
+  // Verificamos si hay datos del Bluetooth
+  if (miBluetooth.available() > 0) {
+    
+    // Leemos todo hasta que llegue el salto de línea (\n)
+    String datos = miBluetooth.readStringUntil('\n');
+    
+    // Buscamos dónde están la 'X' y la 'Y' en el mensaje
+    int indexX = datos.indexOf('X');
+    int indexY = datos.indexOf('Y');
+
+    if (indexX != -1 && indexY != -1) {
+      // Extraemos los números
+      // La X va desde justo después de la 'X' hasta la 'Y'
+      int ejeX = datos.substring(indexX + 1, indexY).toInt();
+      // La Y va desde justo después de la 'Y' hasta el final
+      int ejeY = datos.substring(indexY + 1).toInt();
+
+      // Mandamos a calcular y mover los motores
+      conducir(ejeX, ejeY);
+    }
+  }
+}
+
+// ==========================================
+//          Control Diferencial
+// ==========================================
+
+void conducir(int x, int y) {
+  // Ecuación de Arcade Drive
+  int velIzquierda = y + x;
+  int velDerecha = y - x;
+
+  // Nos aseguramos de que no pasen del límite permitido (-255 a 255)
+  velIzquierda = constrain(velIzquierda, -255, 255);
+  velDerecha = constrain(velDerecha, -255, 255);
+
+  // Mover motor izquierdo
+  controlarMotorIzquierdo(velIzquierda);
+  // Mover motor derecho
+  controlarMotorDerecho(velDerecha);
+}
+
+// ==========================================
+//        FUNCIONES INDIVIDUALES
+// ==========================================
+
+void controlarMotorIzquierdo(int velocidad) {
+  if (velocidad > 0) {
+    // Adelante
+    digitalWrite(IN3, HIGH);
+    digitalWrite(IN4, LOW);
+    analogWrite(ENB, velocidad);
+  } else if (velocidad < 0) {
+    // Atrás
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, HIGH);
+    analogWrite(ENB, abs(velocidad)); // abs() quita el signo negativo
+  } else {
+    // Parar
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, LOW);
+    analogWrite(ENB, 0);
+  }
+}
+
+void controlarMotorDerecho(int velocidad) {
+  if (velocidad > 0) {
+    // Adelante
+    digitalWrite(IN1, HIGH);
+    digitalWrite(IN2, LOW);
+    analogWrite(ENA, velocidad);
+  } else if (velocidad < 0) {
+    // Atrás
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, HIGH);
+    analogWrite(ENA, abs(velocidad));
+  } else {
+    // Parar
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+    analogWrite(ENA, 0);
+  }
+}
+
+void pararMotores() {
+  controlarMotorIzquierdo(0);
+  controlarMotorDerecho(0);
+}
